@@ -25,7 +25,7 @@ describe("NFT", function () {
   it("Should redeem an NFT from a signed voucher", async function() {
 	await nft.togglePauseState();
     const lazyMinter = new LazyMinter({ contract: nft, signer: accounts[0] })
-    const voucher = await lazyMinter.createVoucher(1, 5, 10, "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi", accounts[2].address, "0x0000000000000000000000000000000000000000");
+    const voucher = await lazyMinter.createVoucher(1, 5, 10, "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi", accounts[2].address, "0x0000000000000000000000000000000000000000", 1);
 
 	const NFTVoucher = {
 		tokenId: 1, 
@@ -33,11 +33,12 @@ describe("NFT", function () {
 		minPrice: 10, 
 		uri: "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi", 
 		creator: accounts[2].address, 
-		token: "0x0000000000000000000000000000000000000000"
+		token: "0x0000000000000000000000000000000000000000",
+    nonce: 1,
 	}
 	console.log(NFTVoucher, voucher)
 	await nft.connect(accounts[1]).redeem(voucher, { value: "50" });
-    const voucher2 = await lazyMinter.createVoucher(1, 11, 2, "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi", accounts[2].address, "0x0000000000000000000000000000000000000000");
+    const voucher2 = await lazyMinter.createVoucher(1, 11, 2, "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi", accounts[2].address, "0x0000000000000000000000000000000000000000", 2);
 	await nft.connect(accounts[2]).redeem(voucher2, { value: "22" });
 //     await expect(redeemerContract.redeem(redeemer.address, voucher))
 //       .to.emit(contract, 'Transfer')  // transfer from null address to minter

@@ -27,6 +27,7 @@ contract NFT is ERC1155, Ownable, ReentrancyGuard, EIP712, AccessControl {
 
     mapping (address => bool) public acceptedTokens;
     mapping(uint256 => string) private _tokenURIs;
+    mapping(uint256 => bool) public isNonceUsed;
 
     // string private _baseURIextended;
 
@@ -50,6 +51,9 @@ contract NFT is ERC1155, Ownable, ReentrancyGuard, EIP712, AccessControl {
         /// @notice address of accepted token
         address token;
 
+        /// @notice unique nonce
+        uint256 nonce;
+
         /// @notice the EIP-712 signature of all other fields in the NFTVoucher struct. For a voucher to be valid, it must be signed by an account with the MINTER_ROLE.
         bytes signature;
     }
@@ -62,6 +66,7 @@ contract NFT is ERC1155, Ownable, ReentrancyGuard, EIP712, AccessControl {
     /// @param voucher An NFTVoucher that describes the NFT to be redeemed.
     function redeem(NFTVoucher calldata voucher) public payable {
         require(!paused, "NFT: contract is paused");
+        require(!isNonceUsed[voucher.nonce], "NFT: nonce is used");
         address signer = _verify(voucher);
         require(hasRole(MINTER_ROLE, signer), "Signature invalid or unauthorized");
         uint platformFeeAmount = (platformFees * voucher.minPrice * voucher.quantity) / 10000;
@@ -77,6 +82,7 @@ contract NFT is ERC1155, Ownable, ReentrancyGuard, EIP712, AccessControl {
             IERC20(voucher.token).safeTransferFrom(msg.sender, voucher.creator, creatorFee);
             IERC20(voucher.token).safeTransferFrom(msg.sender, signer, platformFeeAmount);
         }
+        isNonceUsed[voucher.nonce] = true;
         _mint(voucher.creator, voucher.tokenId, voucher.quantity, "");
         _setTokenURI(voucher.tokenId, voucher.uri);
         _safeTransferFrom(voucher.creator, msg.sender, voucher.tokenId, voucher.quantity, "");
@@ -120,13 +126,14 @@ contract NFT is ERC1155, Ownable, ReentrancyGuard, EIP712, AccessControl {
 
     function _hash(NFTVoucher calldata voucher) internal view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(
-            keccak256("NFTVoucher(uint256 tokenId,uint256 quantity,uint256 minPrice,string uri,address creator,address token)"),
+            keccak256("NFTVoucher(uint256 tokenId,uint256 quantity,uint256 minPrice,string uri,address creator,address token,uint256 nonce)"),
             voucher.tokenId,
             voucher.quantity,
             voucher.minPrice,
             keccak256(bytes(voucher.uri)),
             voucher.creator,
-            voucher.token
+            voucher.token,
+            voucher.nonce
         )));
     }
 
