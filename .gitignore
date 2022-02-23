@@ -9,3 +9,4 @@ coverage/
 credentials.js
 .env
 ipfs/
+dummy

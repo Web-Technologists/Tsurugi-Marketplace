@@ -1,5 +1,4 @@
 //SPDX-License-Identifier: Unlicense
-// ERC1155
 
 pragma solidity ^0.8.0;
 
@@ -12,6 +11,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+
 contract NFT is ERC1155, Ownable, ReentrancyGuard, EIP712, AccessControl {
     
     using SafeERC20 for IERC20;
