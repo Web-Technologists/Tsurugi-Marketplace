@@ -191,6 +191,7 @@ contract Marketplace is Ownable, ReentrancyGuard {
 
     /// @notice Contract initializer
     constructor(address _tokenRegistry, address payable _feeRecipient, uint16 _platformFee) {
+        tokenRegistry = _tokenRegistry;
         platformFee = _platformFee;
         feeReceipient = _feeRecipient;
     }
@@ -470,147 +471,147 @@ contract Marketplace is Ownable, ReentrancyGuard {
         delete (listings[_nftAddress][_tokenId][_owner]);
     }
 
-    /// @notice Method for offering item
-    /// @param _nftAddress NFT contract address
-    /// @param _tokenId TokenId
-    /// @param _payToken Paying token
-    /// @param _quantity Quantity of items
-    /// @param _pricePerItem Price per item
-    /// @param _deadline Offer expiration
-    function createOffer(
-        address _nftAddress,
-        uint256 _tokenId,
-        IERC20 _payToken,
-        uint256 _quantity,
-        uint256 _pricePerItem,
-        uint256 _deadline
-    ) external offerNotExists(_nftAddress, _tokenId, _msgSender()) {
-        require(
-            IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721) ||
-                IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC1155),
-            "invalid nft address"
-        );
-        require(_deadline > _getNow(), "invalid expiration");
-        require(
-            address(_payToken) == address(0) ||
-                (tokenRegistry != address(0) &&
-                    ITokenRegistry(tokenRegistry).enabled(
-                        address(_payToken)
-                    )),
-            "invalid pay token"
-        );
+    // /// @notice Method for offering item
+    // /// @param _nftAddress NFT contract address
+    // /// @param _tokenId TokenId
+    // /// @param _payToken Paying token
+    // /// @param _quantity Quantity of items
+    // /// @param _pricePerItem Price per item
+    // /// @param _deadline Offer expiration
+    // function createOffer(
+    //     address _nftAddress,
+    //     uint256 _tokenId,
+    //     IERC20 _payToken,
+    //     uint256 _quantity,
+    //     uint256 _pricePerItem,
+    //     uint256 _deadline
+    // ) external offerNotExists(_nftAddress, _tokenId, _msgSender()) {
+    //     require(
+    //         IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721) ||
+    //             IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC1155),
+    //         "invalid nft address"
+    //     );
+    //     require(_deadline > _getNow(), "invalid expiration");
+    //     require(
+    //         address(_payToken) == address(0) ||
+    //             (tokenRegistry != address(0) &&
+    //                 ITokenRegistry(tokenRegistry).enabled(
+    //                     address(_payToken)
+    //                 )),
+    //         "invalid pay token"
+    //     );
 
-        offers[_nftAddress][_tokenId][_msgSender()] = Offer(
-            _payToken,
-            _quantity,
-            _pricePerItem,
-            _deadline
-        );
+    //     offers[_nftAddress][_tokenId][_msgSender()] = Offer(
+    //         _payToken,
+    //         _quantity,
+    //         _pricePerItem,
+    //         _deadline
+    //     );
 
-        emit OfferCreated(
-            _msgSender(),
-            _nftAddress,
-            _tokenId,
-            _quantity,
-            address(_payToken),
-            _pricePerItem,
-            _deadline
-        );
-    }
+    //     emit OfferCreated(
+    //         _msgSender(),
+    //         _nftAddress,
+    //         _tokenId,
+    //         _quantity,
+    //         address(_payToken),
+    //         _pricePerItem,
+    //         _deadline
+    //     );
+    // }
 
-    /// @notice Method for canceling the offer
-    /// @param _nftAddress NFT contract address
-    /// @param _tokenId TokenId
-    function cancelOffer(address _nftAddress, uint256 _tokenId)
-        external
-        offerExists(_nftAddress, _tokenId, _msgSender())
-    {
-        delete (offers[_nftAddress][_tokenId][_msgSender()]);
-        emit OfferCanceled(_msgSender(), _nftAddress, _tokenId);
-    }
+    // /// @notice Method for canceling the offer
+    // /// @param _nftAddress NFT contract address
+    // /// @param _tokenId TokenId
+    // function cancelOffer(address _nftAddress, uint256 _tokenId)
+    //     external
+    //     offerExists(_nftAddress, _tokenId, _msgSender())
+    // {
+    //     delete (offers[_nftAddress][_tokenId][_msgSender()]);
+    //     emit OfferCanceled(_msgSender(), _nftAddress, _tokenId);
+    // }
 
-    /// @notice Method for accepting the offer
-    /// @param _nftAddress NFT contract address
-    /// @param _tokenId TokenId
-    /// @param _creator Offer creator address
-    function acceptOffer(
-        address _nftAddress,
-        uint256 _tokenId,
-        address _creator
-    ) external nonReentrant offerExists(_nftAddress, _tokenId, _creator) {
-        Offer memory offer = offers[_nftAddress][_tokenId][_creator];
-        if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
-            IERC721 nft = IERC721(_nftAddress);
-            require(nft.ownerOf(_tokenId) == _msgSender(), "not owning item");
-        } else if (
-            IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC1155)
-        ) {
-            IERC1155 nft = IERC1155(_nftAddress);
-            require(
-                nft.balanceOf(_msgSender(), _tokenId) >= offer.quantity,
-                "not owning item"
-            );
-        } else {
-            revert("invalid nft address");
-        }
+    // /// @notice Method for accepting the offer
+    // /// @param _nftAddress NFT contract address
+    // /// @param _tokenId TokenId
+    // /// @param _creator Offer creator address
+    // function acceptOffer(
+    //     address _nftAddress,
+    //     uint256 _tokenId,
+    //     address _creator
+    // ) external nonReentrant offerExists(_nftAddress, _tokenId, _creator) {
+    //     Offer memory offer = offers[_nftAddress][_tokenId][_creator];
+    //     if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
+    //         IERC721 nft = IERC721(_nftAddress);
+    //         require(nft.ownerOf(_tokenId) == _msgSender(), "not owning item");
+    //     } else if (
+    //         IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC1155)
+    //     ) {
+    //         IERC1155 nft = IERC1155(_nftAddress);
+    //         require(
+    //             nft.balanceOf(_msgSender(), _tokenId) >= offer.quantity,
+    //             "not owning item"
+    //         );
+    //     } else {
+    //         revert("invalid nft address");
+    //     }
 
-        uint256 price = offer.pricePerItem.mul(offer.quantity);
-        uint256 feeAmount = price.mul(platformFee).div(1e3);
-        uint256 royaltyFee;
+    //     uint256 price = offer.pricePerItem.mul(offer.quantity);
+    //     uint256 feeAmount = price.mul(platformFee).div(1e3);
+    //     uint256 royaltyFee;
 
-        offer.payToken.safeTransferFrom(_creator, feeReceipient, feeAmount);
-        address minter = minters[_nftAddress][_tokenId];
-        uint16 royalty = royalties[_nftAddress][_tokenId];
-        if (minter != address(0) && royalty != 0) {
-            royaltyFee = price.sub(feeAmount).mul(royalty).div(10000);
-            offer.payToken.safeTransferFrom(_creator, minter, royaltyFee);
-            feeAmount = feeAmount.add(royaltyFee);
-        } else {
-            minter = collectionRoyalties[_nftAddress].feeRecipient;
-            royalty = collectionRoyalties[_nftAddress].royalty;
-            if (minter != address(0) && royalty != 0) {
-                royaltyFee = price.sub(feeAmount).mul(royalty).div(10000);
-                offer.payToken.safeTransferFrom(_creator, minter, royaltyFee);
-                feeAmount = feeAmount.add(royaltyFee);
-            }
-        }
-        offer.payToken.safeTransferFrom(
-            _creator,
-            _msgSender(),
-            price.sub(feeAmount)
-        );
+    //     offer.payToken.safeTransferFrom(_creator, feeReceipient, feeAmount);
+    //     address minter = minters[_nftAddress][_tokenId];
+    //     uint16 royalty = royalties[_nftAddress][_tokenId];
+    //     if (minter != address(0) && royalty != 0) {
+    //         royaltyFee = price.sub(feeAmount).mul(royalty).div(10000);
+    //         offer.payToken.safeTransferFrom(_creator, minter, royaltyFee);
+    //         feeAmount = feeAmount.add(royaltyFee);
+    //     } else {
+    //         minter = collectionRoyalties[_nftAddress].feeRecipient;
+    //         royalty = collectionRoyalties[_nftAddress].royalty;
+    //         if (minter != address(0) && royalty != 0) {
+    //             royaltyFee = price.sub(feeAmount).mul(royalty).div(10000);
+    //             offer.payToken.safeTransferFrom(_creator, minter, royaltyFee);
+    //             feeAmount = feeAmount.add(royaltyFee);
+    //         }
+    //     }
+    //     offer.payToken.safeTransferFrom(
+    //         _creator,
+    //         _msgSender(),
+    //         price.sub(feeAmount)
+    //     );
 
-        // Transfer NFT to buyer
-        if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
-            IERC721(_nftAddress).safeTransferFrom(
-                _msgSender(),
-                _creator,
-                _tokenId
-            );
-        } else {
-            IERC1155(_nftAddress).safeTransferFrom(
-                _msgSender(),
-                _creator,
-                _tokenId,
-                offer.quantity,
-                bytes("")
-            );
-        }
+    //     // Transfer NFT to buyer
+    //     if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
+    //         IERC721(_nftAddress).safeTransferFrom(
+    //             _msgSender(),
+    //             _creator,
+    //             _tokenId
+    //         );
+    //     } else {
+    //         IERC1155(_nftAddress).safeTransferFrom(
+    //             _msgSender(),
+    //             _creator,
+    //             _tokenId,
+    //             offer.quantity,
+    //             bytes("")
+    //         );
+    //     }
 
-        delete (listings[_nftAddress][_tokenId][_msgSender()]);
-        delete (offers[_nftAddress][_tokenId][_creator]);
+    //     delete (listings[_nftAddress][_tokenId][_msgSender()]);
+    //     delete (offers[_nftAddress][_tokenId][_creator]);
 
-        emit ItemSold(
-            _msgSender(),
-            _creator,
-            _nftAddress,
-            _tokenId,
-            offer.quantity,
-            address(offer.payToken),
-            offer.pricePerItem
-        );
-        emit OfferCanceled(_creator, _nftAddress, _tokenId);
-    }
+    //     emit ItemSold(
+    //         _msgSender(),
+    //         _creator,
+    //         _nftAddress,
+    //         _tokenId,
+    //         offer.quantity,
+    //         address(offer.payToken),
+    //         offer.pricePerItem
+    //     );
+    //     emit OfferCanceled(_creator, _nftAddress, _tokenId);
+    // }
 
     /// @notice Method for setting royalty
     /// @param _nftAddress NFT contract address
