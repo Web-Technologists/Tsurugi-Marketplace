@@ -400,6 +400,26 @@ contract NFTAuction is Ownable, ReentrancyGuard {
     // Admin /
     //////////
 
+    function manualResultAuction(address _nftAddress, uint256 _tokenId, uint _bidNumber) external nonReentrant {
+        BidDetails storage bidDetail = bidDetails[_nftAddress][_tokenId][_bidNumber];
+        require(bidDetail.bidExists, "bid does not exist");
+        address winner = bidDetail.bidder;
+        uint256 winningBid = bidDetail.bid;
+
+        _resultAuction(_nftAddress, _tokenId, winner, winningBid);
+    }
+
+    function resultAuction(address _nftAddress, uint256 _tokenId) external nonReentrant {
+        // Get info on who the highest bidder is
+        uint totalBid = totalBids[_nftAddress][_tokenId];
+        BidDetails storage bidDetail = bidDetails[_nftAddress][_tokenId][totalBid];
+        require(bidDetail.bidExists, "bid does not exist");
+        address winner = bidDetail.bidder;
+        uint256 winningBid = bidDetail.bid;
+
+        _resultAuction(_nftAddress, _tokenId, winner, winningBid);
+    }
+
     /**
      @notice Results a finished auction
      @dev Only admin or smart contract
@@ -408,10 +428,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
      @param _nftAddress ERC 721 Address
      @param _tokenId Token ID of the item being auctioned
      */
-    function resultAuction(address _nftAddress, uint256 _tokenId)
-        external
-        nonReentrant
-    {
+    function _resultAuction(address _nftAddress, uint256 _tokenId, address winner, uint256 winningBid) internal {
         // Check the auction to see if it can be resulted
         Auction storage auction = auctions[_nftAddress][_tokenId];
 
@@ -436,15 +453,8 @@ contract NFTAuction is Ownable, ReentrancyGuard {
             "auction not approved"
         );
 
-        // Get info on who the highest bidder is
-        uint totalBid = totalBids[_nftAddress][_tokenId];
-        BidDetails storage bidDetail = bidDetails[_nftAddress][_tokenId][totalBid];
-        address winner = bidDetail.bidder;
-        uint256 winningBid = bidDetail.bid;
-
         // Ensure there is a winner
         require(winner != address(0), "no open bids");
-
         // Result the auction
         auction.resulted = true;
 
