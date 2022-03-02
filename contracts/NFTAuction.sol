@@ -4,8 +4,8 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-// import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-// import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
@@ -110,6 +110,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
     /// @notice Parameters of an auction
     struct Auction {
         address owner;
+        uint256 quantity;
         address payToken;
         uint256 reservePrice;
         uint256 startTime;
@@ -125,6 +126,9 @@ contract NFTAuction is Ownable, ReentrancyGuard {
         uint256 lastBidTime;
         bool bidExists; 
     }
+
+    bytes4 private constant INTERFACE_ID_ERC721 = 0x80ac58cd;
+    bytes4 private constant INTERFACE_ID_ERC1155 = 0xd9b67a26;
 
     /// @notice ERC721 Address -> Token ID -> Auction Parameters
     mapping(address => mapping(uint256 => Auction)) public auctions;
@@ -197,20 +201,43 @@ contract NFTAuction is Ownable, ReentrancyGuard {
     function createAuction(
         address _nftAddress,
         uint256 _tokenId,
+        uint256 _quantity,
         address _payToken,
         uint256 _reservePrice,
         uint256 _startTimestamp,
         uint256 _endTimestamp
     ) external whenNotPaused {
         // Ensure this contract is approved to move the token
-        require(
-            IERC721(_nftAddress).ownerOf(_tokenId) == _msgSender() &&
-                IERC721(_nftAddress).isApprovedForAll(
-                    _msgSender(),
-                    address(this)
-                ),
-            "not owner and or contract not approved"
-        );
+        if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
+            IERC721 nft = IERC721(_nftAddress);
+            require(nft.ownerOf(_tokenId) == _msgSender(), "not owning item");
+            require(
+                nft.isApprovedForAll(_msgSender(), address(this)),
+                "item not approved"
+            );
+        } else if (
+            IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC1155)
+        ) {
+            IERC1155 nft = IERC1155(_nftAddress);
+            require(
+                nft.balanceOf(_msgSender(), _tokenId) >= _quantity,
+                "must hold enough nfts"
+            );
+            require(
+                nft.isApprovedForAll(_msgSender(), address(this)),
+                "item not approved"
+            );
+        } else {
+            revert("invalid nft address");
+        }
+        // require(
+        //     IERC721(_nftAddress).ownerOf(_tokenId) == _msgSender() &&
+        //         IERC721(_nftAddress).isApprovedForAll(
+        //             _msgSender(),
+        //             address(this)
+        //         ),
+        //     "not owner and or contract not approved"
+        // );
 
         require(
             _payToken == address(0) ||
@@ -224,6 +251,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
         _createAuction(
             _nftAddress,
             _tokenId,
+            _quantity,
             _payToken,
             _reservePrice,
             _startTimestamp,
@@ -432,11 +460,26 @@ contract NFTAuction is Ownable, ReentrancyGuard {
         // Check the auction to see if it can be resulted
         Auction storage auction = auctions[_nftAddress][_tokenId];
 
-        require(
-            IERC721(_nftAddress).ownerOf(_tokenId) == _msgSender() &&
-                _msgSender() == auction.owner,
-            "sender must be item owner"
-        );
+        if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
+            IERC721 nft = IERC721(_nftAddress);
+            require(nft.ownerOf(_tokenId) == _msgSender(), "not owning item");
+        } else if (
+            IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC1155)
+        ) {
+            IERC1155 nft = IERC1155(_nftAddress);
+            require(
+                nft.balanceOf(_msgSender(), _tokenId) >= auction.quantity,
+                "not owning item"
+            );
+        } else {
+            revert("invalid nft address");
+        }
+
+        // require(
+        //     IERC721(_nftAddress).ownerOf(_tokenId) == _msgSender() &&
+        //         _msgSender() == auction.owner,
+        //     "sender must be item owner"
+        // );
 
         // Check the auction real
         require(auction.endTime > 0, "no auction exists");
@@ -448,10 +491,25 @@ contract NFTAuction is Ownable, ReentrancyGuard {
         require(!auction.resulted, "auction already resulted");
 
         // Ensure this contract is approved to move the token
-        require(
-            IERC721(_nftAddress).isApprovedForAll(_msgSender(), address(this)),
-            "auction not approved"
-        );
+        if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
+            IERC721 nft = IERC721(_nftAddress);
+            require(
+                nft.isApprovedForAll(_msgSender(), address(this)),
+                "item not approved"
+            );
+        } else if (
+            IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC1155)
+        ) {
+            IERC1155 nft = IERC1155(_nftAddress);
+            require(
+                nft.isApprovedForAll(_msgSender(), address(this)),
+                "item not approved"
+            );
+        }
+        // require(
+        //     IERC721(_nftAddress).isApprovedForAll(_msgSender(), address(this)),
+        //     "auction not approved"
+        // );
 
         // Ensure there is a winner
         require(winner != address(0), "no open bids");
@@ -556,11 +614,27 @@ contract NFTAuction is Ownable, ReentrancyGuard {
         }
 
         // Transfer the token to the winner
-        IERC721(_nftAddress).safeTransferFrom(
-            IERC721(_nftAddress).ownerOf(_tokenId),
-            winner,
-            _tokenId
-        );
+        if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
+            IERC721(_nftAddress).safeTransferFrom(
+                _msgSender(),
+                winner,
+                _tokenId
+            );
+        } else {
+            IERC1155(_nftAddress).safeTransferFrom(
+                _msgSender(),
+                winner,
+                _tokenId,
+                auction.quantity,
+                bytes("")
+            );
+        }
+
+        // IERC721(_nftAddress).safeTransferFrom(
+        //     IERC721(_nftAddress).ownerOf(_tokenId),
+        //     winner,
+        //     _tokenId
+        // );
 
         emit AuctionResulted(
             _nftAddress,
@@ -584,11 +658,26 @@ contract NFTAuction is Ownable, ReentrancyGuard {
         // Check valid and not resulted
         Auction memory auction = auctions[_nftAddress][_tokenId];
 
-        require(
-            IERC721(_nftAddress).ownerOf(_tokenId) == _msgSender() &&
-                _msgSender() == auction.owner,
-            "sender must be owner"
-        );
+        if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
+            IERC721 nft = IERC721(_nftAddress);
+            require(nft.ownerOf(_tokenId) == _msgSender(), "not owning item");
+        } else if (
+            IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC1155)
+        ) {
+            IERC1155 nft = IERC1155(_nftAddress);
+            require(
+                nft.balanceOf(_msgSender(), _tokenId) >= auction.quantity,
+                "not owning item"
+            );
+        } else {
+            revert("invalid nft address");
+        }
+
+        // require(
+        //     IERC721(_nftAddress).ownerOf(_tokenId) == _msgSender() &&
+        //         _msgSender() == auction.owner,
+        //     "sender must be owner"
+        // );
         // Check auction is real
         require(auction.endTime > 0, "no auction exists");
         // Check auction not already resulted
@@ -825,6 +914,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
     function _createAuction(
         address _nftAddress,
         uint256 _tokenId,
+        uint256 _quantity,
         address _payToken,
         uint256 _reservePrice,
         uint256 _startTimestamp,
@@ -846,6 +936,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
         // Setup the auction
         auctions[_nftAddress][_tokenId] = Auction({
             owner: _msgSender(),
+            quantity: _quantity,
             payToken: _payToken,
             reservePrice: _reservePrice,
             startTime: _startTimestamp,
