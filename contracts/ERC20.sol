@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 
 contract USDC is ERC20{
-    constructor() public ERC20('USDC Token', 'USDC') {
+    constructor() ERC20('USDC Token', 'USDC') {
         _mint(msg.sender, 2_500_000_000 * 10 ** 18);
     }
 }

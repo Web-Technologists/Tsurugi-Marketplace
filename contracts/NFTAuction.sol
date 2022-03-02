@@ -4,6 +4,8 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+// import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+// import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
@@ -34,7 +36,7 @@ interface ITokenRegistry {
 /**
  * @notice Secondary sale auction contract for NFTs
  */
-contract Auction is Ownable, ReentrancyGuard {
+contract NFTAuction is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using Address for address payable;
     using SafeERC20 for IERC20;
@@ -113,20 +115,25 @@ contract Auction is Ownable, ReentrancyGuard {
         uint256 startTime;
         uint256 endTime;
         bool resulted;
+        bool cancelled;
     }
 
     /// @notice Information about the sender that placed a bit on an auction
-    struct HighestBid {
+    struct BidDetails {
         address payable bidder;
         uint256 bid;
         uint256 lastBidTime;
+        bool bidExists; 
     }
 
     /// @notice ERC721 Address -> Token ID -> Auction Parameters
     mapping(address => mapping(uint256 => Auction)) public auctions;
 
-    /// @notice ERC721 Address -> Token ID -> highest bidder info (if a bid has been received)
-    mapping(address => mapping(uint256 => HighestBid)) public highestBids;
+    /// @notice ERC721 Address -> Token ID -> bid number -> highest bidder info (if a bid has been received)
+    mapping(address => mapping(uint256 => mapping(uint256 => BidDetails))) public bidDetails;
+
+    /// @notice ERC721 Address -> Token ID -> totalBids
+    mapping(address => mapping(uint256 => uint256)) public totalBids;
 
     /// @notice globally and across all auctions, the amount by which a bid has to increase
     uint256 public minBidIncrement = 0.05 ether;
@@ -163,14 +170,14 @@ contract Auction is Ownable, ReentrancyGuard {
     }
 
     /// @notice Contract initializer
-    constructor(address _marketplace, address _tokenRegistry, address payable _platformFeeRecipient, uint platformFee) {
+    constructor(address _marketplace, address _tokenRegistry, address payable _platformFeeRecipient, uint _platformFee) {
         require(
             _platformFeeRecipient != address(0),
             "Auction: Invalid Platform Fee Recipient"
         );
 
         platformFeeRecipient = _platformFeeRecipient;
-        platformFee = platformFee;
+        platformFee = _platformFee;
         tokenRegistry = _tokenRegistry;
         marketplace = _marketplace;
     }
@@ -292,8 +299,10 @@ contract Auction is Ownable, ReentrancyGuard {
     ) internal whenNotPaused {
         Auction storage auction = auctions[_nftAddress][_tokenId];
         // Ensure bid adheres to outbid increment and threshold
-        HighestBid storage highestBid = highestBids[_nftAddress][_tokenId];
-        uint256 minBidRequired = highestBid.bid.add(minBidIncrement);
+        uint totalBid = totalBids[_nftAddress][_tokenId];
+        totalBids[_nftAddress][_tokenId]++;
+        BidDetails storage bidDetail = bidDetails[_nftAddress][_tokenId][totalBid];
+        uint256 minBidRequired = bidDetail.bid.add(minBidIncrement);
         require(
             _bidAmount >= minBidRequired,
             "failed to outbid highest bidder"
@@ -307,20 +316,25 @@ contract Auction is Ownable, ReentrancyGuard {
         }
 
         // Refund existing top bidder if found
-        if (highestBid.bidder != address(0)) {
-            _refundHighestBidder(
-                _nftAddress,
-                _tokenId,
-                highestBid.bidder,
-                highestBid.bid
-            );
-        }
+        // if (bidDetail.bidder != address(0)) {
+        //     _refundBidder(
+        //         _nftAddress,
+        //         _tokenId,
+        //         highestBid.bidder,
+        //         highestBid.bid
+        //     );
+        // }
 
         // assign top bidder and bid time
-        highestBid.bidder = payable(_msgSender());
-        highestBid.bid = _bidAmount;
-        highestBid.lastBidTime = _getNow();
-
+        bidDetails[_nftAddress][_tokenId][totalBid + 1] = BidDetails(
+            payable(_msgSender()),
+            _bidAmount,
+            _getNow(),
+            true
+        );
+        // highestBid.bidder = payable(_msgSender());
+        // highestBid.bid = _bidAmount;
+        // highestBid.lastBidTime = _getNow();
         emit BidPlaced(_nftAddress, _tokenId, _msgSender(), _bidAmount);
     }
 
@@ -330,44 +344,56 @@ contract Auction is Ownable, ReentrancyGuard {
      @param _nftAddress ERC 721 Address
      @param _tokenId Token ID of the item being auctioned
      */
-    function withdrawBid(address _nftAddress, uint256 _tokenId)
+    function withdrawBid(address _nftAddress, uint256 _tokenId, uint256 _bidNumber)
         external
         nonReentrant
         whenNotPaused
     {
-        HighestBid storage highestBid = highestBids[_nftAddress][_tokenId];
+        require (_bidNumber != 0 && _bidNumber <= totalBids[_nftAddress][_tokenId], "bid number out of range");
+        BidDetails storage bidDetail = bidDetails[_nftAddress][_tokenId][_bidNumber];
 
         // Ensure highest bidder is the caller
         require(
-            highestBid.bidder == _msgSender(),
+            bidDetail.bidder == _msgSender(),
             "you are not the highest bidder"
         );
 
+        require(
+            bidDetail.bidExists == true,
+            "bid does not exist"
+        );
+
         // Check withdrawal after delay time
-        require(
-            _getNow() >= highestBid.lastBidTime.add(bidWithdrawalLockTime),
-            "cannot withdraw until lock time has passed"
-        );
+        if (!auctions[_nftAddress][_tokenId].cancelled){
+            require(
+                _getNow() >= bidDetail.lastBidTime.add(bidWithdrawalLockTime),
+                "cannot withdraw until lock time has passed"
+            );
 
-        require(
-            _getNow() < auctions[_nftAddress][_tokenId].endTime,
-            "past auction end"
-        );
+            require(
+                _getNow() < auctions[_nftAddress][_tokenId].endTime,
+                "past auction end"
+            );
+        }
 
-        uint256 previousBid = highestBid.bid;
+        bidDetail.bidExists = false;
+
+        //TODO refund bid
+
+        // uint256 previousBid = highestBid.bid;
 
         // Clean up the existing top bid
-        delete highestBids[_nftAddress][_tokenId];
+        // delete highestBids[_nftAddress][_tokenId];
 
         // Refund the top bidder
-        _refundHighestBidder(
+        _refundBidder(
             _nftAddress,
             _tokenId,
             payable(_msgSender()),
-            previousBid
+            bidDetail.bid
         );
 
-        emit BidWithdrawn(_nftAddress, _tokenId, _msgSender(), previousBid);
+        emit BidWithdrawn(_nftAddress, _tokenId, _msgSender(), bidDetail.bid);
     }
 
     //////////
@@ -411,9 +437,10 @@ contract Auction is Ownable, ReentrancyGuard {
         );
 
         // Get info on who the highest bidder is
-        HighestBid storage highestBid = highestBids[_nftAddress][_tokenId];
-        address winner = highestBid.bidder;
-        uint256 winningBid = highestBid.bid;
+        uint totalBid = totalBids[_nftAddress][_tokenId];
+        BidDetails storage bidDetail = bidDetails[_nftAddress][_tokenId][totalBid];
+        address winner = bidDetail.bidder;
+        uint256 winningBid = bidDetail.bid;
 
         // Ensure there is a winner
         require(winner != address(0), "no open bids");
@@ -422,7 +449,7 @@ contract Auction is Ownable, ReentrancyGuard {
         auction.resulted = true;
 
         // Clean up the highest bid
-        delete highestBids[_nftAddress][_tokenId];
+        // delete bidDetails[_nftAddress][_tokenId];
 
         uint256 payAmount;
 
@@ -556,8 +583,12 @@ contract Auction is Ownable, ReentrancyGuard {
         require(auction.endTime > 0, "no auction exists");
         // Check auction not already resulted
         require(!auction.resulted, "auction already resulted");
+        // check auction not already cancelled
+        require(!auction.cancelled, "auction already cancelled");
+        auction.cancelled = true;
 
-        _cancelAuction(_nftAddress, _tokenId);
+        // _cancelAuction(_nftAddress, _tokenId);
+        emit AuctionCancelled(_nftAddress, _tokenId);
     }
 
     /**
@@ -750,17 +781,18 @@ contract Auction is Ownable, ReentrancyGuard {
      @notice Method for getting all info about the highest bidder
      @param _tokenId Token ID of the NFT being auctioned
      */
-    function getHighestBidder(address _nftAddress, uint256 _tokenId)
+    function getBidder(address _nftAddress, uint256 _tokenId, uint256 _bidNumber)
         external
         view
         returns (
             address payable _bidder,
             uint256 _bid,
-            uint256 _lastBidTime
+            uint256 _lastBidTime,
+            bool _exists
         )
     {
-        HighestBid storage highestBid = highestBids[_nftAddress][_tokenId];
-        return (highestBid.bidder, highestBid.bid, highestBid.lastBidTime);
+        BidDetails storage bidDetail = bidDetails[_nftAddress][_tokenId][_bidNumber];
+        return (bidDetail.bidder, bidDetail.bid, bidDetail.lastBidTime, bidDetail.bidExists);
     }
 
     /////////////////////////
@@ -808,63 +840,64 @@ contract Auction is Ownable, ReentrancyGuard {
             reservePrice: _reservePrice,
             startTime: _startTimestamp,
             endTime: _endTimestamp,
-            resulted: false
+            resulted: false,
+            cancelled: false
         });
 
         emit AuctionCreated(_nftAddress, _tokenId, _payToken);
     }
 
-    function _cancelAuction(address _nftAddress, uint256 _tokenId) private {
-        // refund existing top bidder if found
-        HighestBid storage highestBid = highestBids[_nftAddress][_tokenId];
-        if (highestBid.bidder != address(0)) {
-            _refundHighestBidder(
-                _nftAddress,
-                _tokenId,
-                highestBid.bidder,
-                highestBid.bid
-            );
+    // function _cancelAuction(address _nftAddress, uint256 _tokenId) private {
+    //     // refund existing top bidder if found
+    //     BidDetails storage bidDetail = bidDetails[_nftAddress][_tokenId];
+    //     if (bidDetail.bidder != address(0)) {
+    //         _refundBidder(
+    //             _nftAddress,
+    //             _tokenId,
+    //             bidDetail.bidder,
+    //             bidDetail.bid
+    //         );
 
-            // Clear up highest bid
-            delete highestBids[_nftAddress][_tokenId];
-        }
+    //         // Clear up highest bid
+    //         delete bidDetails[_nftAddress][_tokenId];
+    //     }
 
-        // Remove auction and top bidder
-        delete auctions[_nftAddress][_tokenId];
+    //     // Remove auction and top bidder
+    //     delete auctions[_nftAddress][_tokenId];
 
-        emit AuctionCancelled(_nftAddress, _tokenId);
-    }
+    //     emit AuctionCancelled(_nftAddress, _tokenId);
+    // }
 
     /**
      @notice Used for sending back escrowed funds from a previous bid
-     @param _currentHighestBidder Address of the last highest bidder
-     @param _currentHighestBid Ether or Mona amount in WEI that the bidder sent when placing their bid
+     @param _bidder Address of the last highest bidder
+     @param _bid Ether or Mona amount in WEI that the bidder sent when placing their bid
      */
-    function _refundHighestBidder(
+    function _refundBidder(
         address _nftAddress,
         uint256 _tokenId,
-        address payable _currentHighestBidder,
-        uint256 _currentHighestBid
+        address payable _bidder,
+        uint256 _bid
     ) private {
         Auction memory auction = auctions[_nftAddress][_tokenId];
         if (auction.payToken == address(0)) {
             // refund previous best (if bid exists)
-            (bool successRefund, ) = _currentHighestBidder.call{
-                value: _currentHighestBid
+            (bool successRefund, ) = _bidder.call{
+                value: _bid
             }("");
             require(successRefund, "failed to refund previous bidder");
         } else {
             IERC20 payToken = IERC20(auction.payToken);
             require(
-                payToken.transfer(_currentHighestBidder, _currentHighestBid),
+                payToken.transfer(_bidder, _bid),
                 "failed to refund previous bidder"
             );
         }
         emit BidRefunded(
             _nftAddress,
             _tokenId,
-            _currentHighestBidder,
-            _currentHighestBid
+            _bidder,
+            _bid
         );
     }
 
