@@ -15,7 +15,7 @@ interface ITokenRegistry {
     function enabled(address) external view returns (bool);
 }
 
-contract Marketplace is Ownable, ReentrancyGuard {
+contract NFTMarketplace is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using Address for address payable;
     using SafeERC20 for IERC20;
@@ -190,7 +190,7 @@ contract Marketplace is Ownable, ReentrancyGuard {
     }
 
     /// @notice Contract initializer
-    constructor(address _tokenRegistry, address payable _feeRecipient, uint16 _platformFee) {
+    constructor(address _tokenRegistry, uint16 _platformFee, address payable _feeRecipient) {
         tokenRegistry = _tokenRegistry;
         platformFee = _platformFee;
         feeReceipient = _feeRecipient;
