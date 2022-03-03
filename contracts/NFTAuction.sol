@@ -383,7 +383,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
         // Ensure highest bidder is the caller
         require(
             bidDetail.bidder == _msgSender(),
-            "you are not the highest bidder"
+            "you are not the bidder"
         );
 
         require(

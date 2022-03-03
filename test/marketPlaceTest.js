@@ -69,7 +69,7 @@ describe("NFT", function () {
     console.log(`
         The artist should mint nft`);
     await nft.mint(artist.address, 1)
-    await nft1155.mint(artist.address, 1, 10)    
+    await nft1155.mint(artist.address, 1, 10)
 
     console.log(`
         The artist approves the nft to the market`);
