@@ -124,6 +124,11 @@ contract NFT is ERC1155, Ownable, ReentrancyGuard, EIP712, AccessControl {
         payable(msg.sender).transfer(balance);
     }
 
+    function airdrop(address _to, uint256 _tokenId, uint256 _quantity, string calldata _uri) external onlyOwner {
+        _mint(_to, _tokenId, _quantity, "");
+        _setTokenURI(_tokenId, _uri);
+    }
+
     function _hash(NFTVoucher calldata voucher) internal view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(
             keccak256("NFTVoucher(uint256 tokenId,uint256 quantity,uint256 minPrice,string uri,address creator,address token,uint256 nonce)"),

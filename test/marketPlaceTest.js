@@ -338,4 +338,6 @@ describe("NFT", function () {
 
     console.log("");
   });
+
+  //TODO offer and royalty test
 });
