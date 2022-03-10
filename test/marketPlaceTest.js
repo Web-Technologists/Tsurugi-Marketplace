@@ -160,9 +160,9 @@ describe("NFT", function () {
         artist.address
     );
 
-    await marketplace.payEscrow(nft.address, BigNumber.from("1"), artist.address);
-    await marketplace.payEscrow(nft1155.address, BigNumber.from("1"), artist.address);
-    await marketplace.payEscrow(nft1155.address, BigNumber.from("1000000000000000001"), artist.address);
+    await marketplace.payEscrow(nft.address, BigNumber.from("1"), artist.address, true);
+    await marketplace.payEscrow(nft1155.address, BigNumber.from("1"), artist.address, true);
+    await marketplace.payEscrow(nft1155.address, BigNumber.from("1000000000000000001"), artist.address, true);
 
     console.log(`
         *Event ItemSold should be emitted with correct values: 
@@ -311,9 +311,9 @@ describe("NFT", function () {
         { value: utils.parseEther("200") }
     );
 
-    await marketplace.payEscrow(nft.address, BigNumber.from("1"), artist.address);
-    await marketplace.payEscrow(nft1155.address, BigNumber.from("1"), artist.address);
-    await marketplace.payEscrow(nft1155.address, BigNumber.from("1000000000000000001"), artist.address);
+    await marketplace.payEscrow(nft.address, BigNumber.from("1"), artist.address, true);
+    await marketplace.payEscrow(nft1155.address, BigNumber.from("1"), artist.address, true);
+    await marketplace.payEscrow(nft1155.address, BigNumber.from("1000000000000000001"), artist.address, true);
 
     console.log(`
         *Event ItemSold should be emitted with correct values: 

@@ -674,7 +674,8 @@ contract NFTAuction is Ownable, ReentrancyGuard {
     /// @param _nftAddress NFT contract address
     /// @param _tokenId TokenId
     /// @param _owner Owner of the NFT
-    function payEscrow(address _nftAddress, uint256 _tokenId, address _owner) external onlyOwner {
+    /// @param payOriginalOwner If true, will pay the original owner of the NFT
+    function payEscrow(address _nftAddress, uint256 _tokenId, address _owner, bool payOriginalOwner) external onlyOwner {
         Escrow[] memory escrowItems = escrow[_nftAddress][_tokenId][_owner];
         require(escrowItems.length != 0, "No escrow items");
         for (uint256 i = 0; i < escrowItems.length; i++) {
@@ -683,15 +684,29 @@ contract NFTAuction is Ownable, ReentrancyGuard {
                 continue;
             }
             if (escrowItem.payToken == address(0)) {
-                (bool transferSuccess, ) = _owner.call{
-                    value: escrowItem.amount
-                }("");
-                require(transferSuccess, "transfer failed");
+                if(payOriginalOwner) {
+                    (bool transferSuccess, ) = _owner.call{
+                        value: escrowItem.amount
+                    }("");
+                    require(transferSuccess, "transfer failed");
+                } else {
+                    (bool transferSuccess, ) = escrowItem.buyer.call{
+                        value: escrowItem.amount
+                    }("");
+                    require(transferSuccess, "transfer failed");
+                }
             } else {
-                IERC20(escrowItem.payToken).safeTransfer(
-                    _owner,
-                    escrowItem.amount
-                );
+                if(payOriginalOwner) {
+                    IERC20(escrowItem.payToken).safeTransfer(
+                        _owner,
+                        escrowItem.amount
+                    );
+                } else {
+                    IERC20(escrowItem.payToken).safeTransfer(
+                        escrowItem.buyer,
+                        escrowItem.amount
+                    );
+                }
             }
             escrowItem.exists = false;
         }
