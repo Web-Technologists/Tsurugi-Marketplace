@@ -32,6 +32,10 @@ interface ITokenRegistry {
     function enabled(address) external view returns (bool);
 }
 
+interface INFT {
+    function airdrop(address _to, uint256 _tokenId, uint256 _quantity, string calldata _uri) external;
+    function auctionMarketPlaceIndex() external view returns (uint256);
+}
 
 /**
  * @notice Secondary sale auction contract for NFTs
@@ -127,6 +131,14 @@ contract NFTAuction is Ownable, ReentrancyGuard {
         bool bidExists; 
     }
 
+    struct Escrow {
+        address buyer;
+        address payToken;
+        uint amount;
+        bool exists;
+    }
+
+
     bytes4 private constant INTERFACE_ID_ERC721 = 0x80ac58cd;
     bytes4 private constant INTERFACE_ID_ERC1155 = 0xd9b67a26;
 
@@ -138,6 +150,9 @@ contract NFTAuction is Ownable, ReentrancyGuard {
 
     /// @notice ERC721 Address -> Token ID -> totalBids
     mapping(address => mapping(uint256 => uint256)) public totalBids;
+
+    mapping(address => mapping(uint256 => mapping(address => Escrow[])))
+        public escrow;
 
     /// @notice globally and across all auctions, the amount by which a bid has to increase
     uint256 public minBidIncrement = 0.05 ether;
@@ -153,6 +168,8 @@ contract NFTAuction is Ownable, ReentrancyGuard {
 
     /// @notice Token registry
     address public tokenRegistry;
+
+    INFT public nftContract;
 
     /// @notice marketplace
     address public marketplace;
@@ -186,6 +203,12 @@ contract NFTAuction is Ownable, ReentrancyGuard {
         marketplace = _marketplace;
     }
 
+    function createNFTAndAuction(uint _quantity, string calldata _uri, address _payToken, uint _reservePrice, uint _startTimestamp, uint _endTimestamp) external {
+        uint currentTokenIndex = nftContract.auctionMarketPlaceIndex();
+        nftContract.airdrop(msg.sender, currentTokenIndex + 1, _quantity, _uri);
+        createAuction(address(nftContract), currentTokenIndex + 1, _quantity, _payToken, _reservePrice, _startTimestamp, _endTimestamp);
+    }
+
     /**
      @notice Creates a new auction for a given item
      @dev Only the owner of item can create an auction and must have approved the contract
@@ -206,7 +229,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
         uint256 _reservePrice,
         uint256 _startTimestamp,
         uint256 _endTimestamp
-    ) external whenNotPaused {
+    ) public whenNotPaused {
         // Ensure this contract is approved to move the token
         if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
             IERC721 nft = IERC721(_nftAddress);
@@ -596,21 +619,22 @@ contract NFTAuction is Ownable, ReentrancyGuard {
             }
         }
         if (payAmount > 0) {
-            if (auction.payToken == address(0)) {
-                (bool ownerTransferSuccess, ) = auction.owner.call{
-                    value: payAmount
-                }("");
-                require(
-                    ownerTransferSuccess,
-                    "failed to send the owner the auction balance"
-                );
-            } else {
-                IERC20 payToken = IERC20(auction.payToken);
-                require(
-                    payToken.transfer(auction.owner, payAmount),
-                    "failed to send the owner the auction balance"
-                );
-            }
+            // if (auction.payToken == address(0)) {
+            //     (bool ownerTransferSuccess, ) = auction.owner.call{
+            //         value: payAmount
+            //     }("");
+            //     require(
+            //         ownerTransferSuccess,
+            //         "failed to send the owner the auction balance"
+            //     );
+            // } else {
+            //     IERC20 payToken = IERC20(auction.payToken);
+            //     require(
+            //         payToken.transfer(auction.owner, payAmount),
+            //         "failed to send the owner the auction balance"
+            //     );
+            // }
+            escrow[_nftAddress][_tokenId][auction.owner].push(Escrow(winner, auction.payToken, payAmount, true));
         }
 
         // Transfer the token to the winner
@@ -643,6 +667,35 @@ contract NFTAuction is Ownable, ReentrancyGuard {
             auction.payToken,
             winningBid
         );
+    }
+
+    /// @notice Method for paying escrow
+    /// @dev Only contract owner can pay escrow
+    /// @param _nftAddress NFT contract address
+    /// @param _tokenId TokenId
+    /// @param _owner Owner of the NFT
+    function payEscrow(address _nftAddress, uint256 _tokenId, address _owner) external onlyOwner {
+        Escrow[] memory escrowItems = escrow[_nftAddress][_tokenId][_owner];
+        require(escrowItems.length != 0, "No escrow items");
+        for (uint256 i = 0; i < escrowItems.length; i++) {
+            Escrow memory escrowItem = escrowItems[i];
+            if(!escrowItem.exists){
+                continue;
+            }
+            if (escrowItem.payToken == address(0)) {
+                (bool transferSuccess, ) = _owner.call{
+                    value: escrowItem.amount
+                }("");
+                require(transferSuccess, "transfer failed");
+            } else {
+                IERC20(escrowItem.payToken).safeTransfer(
+                    _owner,
+                    escrowItem.amount
+                );
+            }
+            escrowItem.exists = false;
+        }
+        delete (escrow[_nftAddress][_tokenId][_owner]);
     }
 
     /**
@@ -834,6 +887,10 @@ contract NFTAuction is Ownable, ReentrancyGuard {
      */
     function updateTokenRegistry(address _registry) external onlyOwner {
         tokenRegistry = _registry;
+    }
+
+    function updateNFTContract(address _nftContract) external onlyOwner {
+        nftContract = INFT(_nftContract);
     }
 
     /**

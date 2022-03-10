@@ -142,6 +142,9 @@ describe("NFT", function () {
         artist.address
     );
 
+    await marketplace.payEscrow(nft.address, BigNumber.from("1"), artist.address);
+    await marketplace.payEscrow(nft1155.address, BigNumber.from("1"), artist.address);
+
     console.log(`
         *Event ItemSold should be emitted with correct values: 
         seller = ${artist.address}, 
@@ -270,6 +273,9 @@ describe("NFT", function () {
         artist.address,
         { value: utils.parseEther("200") }
     );
+
+    await marketplace.payEscrow(nft.address, BigNumber.from("1"), artist.address);
+    await marketplace.payEscrow(nft1155.address, BigNumber.from("1"), artist.address);
 
     console.log(`
         *Event ItemSold should be emitted with correct values: 

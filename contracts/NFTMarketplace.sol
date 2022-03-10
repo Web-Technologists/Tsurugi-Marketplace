@@ -15,6 +15,11 @@ interface ITokenRegistry {
     function enabled(address) external view returns (bool);
 }
 
+interface INFT {
+    function airdrop(address _to, uint256 _tokenId, uint256 _quantity, string calldata _uri) external;
+    function auctionMarketPlaceIndex() external view returns (uint256);
+}
+
 contract NFTMarketplace is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using Address for address payable;
@@ -90,6 +95,13 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
         address feeRecipient;
     }
 
+    struct Escrow {
+        address buyer;
+        address payToken;
+        uint amount;
+        bool exists;
+    }
+
     bytes4 private constant INTERFACE_ID_ERC721 = 0x80ac58cd;
     bytes4 private constant INTERFACE_ID_ERC1155 = 0xd9b67a26;
 
@@ -107,6 +119,9 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
     mapping(address => mapping(uint256 => mapping(address => Offer)))
         public offers;
 
+    mapping(address => mapping(uint256 => mapping(address => Escrow[])))
+        public escrow;
+
     /// @notice Platform fee
     uint16 public platformFee;
 
@@ -118,6 +133,8 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
 
     /// @notice Token registry
     address public tokenRegistry;
+
+    INFT public nftContract;
 
     modifier isListed(
         address _nftAddress,
@@ -196,6 +213,12 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
         feeReceipient = _feeRecipient;
     }
 
+    function createNFTAndList(uint _quantity, string calldata _uri, address _payToken, uint _pricePerItem, uint _startingTime) external {
+        uint currentTokenIndex = nftContract.auctionMarketPlaceIndex();
+        nftContract.airdrop(msg.sender, currentTokenIndex + 1, _quantity, _uri);
+        listItem(address(nftContract), currentTokenIndex + 1, _quantity, _payToken, _pricePerItem, _startingTime);
+    }
+
     /// @notice Method for listing NFT
     /// @param _nftAddress Address of NFT contract
     /// @param _tokenId Token ID of NFT
@@ -211,7 +234,7 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
         address _payToken,
         uint256 _pricePerItem,
         uint256 _startingTime
-    ) external notListed(_nftAddress, _tokenId, _msgSender()) {
+    ) public notListed(_nftAddress, _tokenId, _msgSender()) {
         if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
             IERC721 nft = IERC721(_nftAddress);
             require(nft.ownerOf(_tokenId) == _msgSender(), "not owning item");
@@ -430,17 +453,19 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
             }
         }
         if (_payToken == address(0)) {
-            (bool ownerTransferSuccess, ) = _owner.call{
-                value: price.sub(feeAmount)
-            }("");
-            require(ownerTransferSuccess, "owner transfer failed");
+            // (bool ownerTransferSuccess, ) = _owner.call{
+            //     value: price.sub(feeAmount)
+            // }("");
+            // require(ownerTransferSuccess, "owner transfer failed");
         } else {
             IERC20(_payToken).safeTransferFrom(
                 _msgSender(),
-                _owner,
+                address(this),
                 price.sub(feeAmount)
             );
         }
+
+        escrow[_nftAddress][_tokenId][_owner].push(Escrow(_msgSender(), _payToken, price.sub(feeAmount), true));
 
         // Transfer NFT to buyer
         if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
@@ -469,6 +494,35 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
             price.div(listedItem.quantity)
         );
         delete (listings[_nftAddress][_tokenId][_owner]);
+    }
+
+    /// @notice Method for paying escrow
+    /// @dev Only contract owner can pay escrow
+    /// @param _nftAddress NFT contract address
+    /// @param _tokenId TokenId
+    /// @param _owner Owner of the NFT
+    function payEscrow(address _nftAddress, uint256 _tokenId, address _owner) external onlyOwner {
+        Escrow[] memory escrowItems = escrow[_nftAddress][_tokenId][_owner];
+        require(escrowItems.length != 0, "No escrow items");
+        for (uint256 i = 0; i < escrowItems.length; i++) {
+            Escrow memory escrowItem = escrowItems[i];
+            if(!escrowItem.exists){
+                continue;
+            }
+            if (escrowItem.payToken == address(0)) {
+                (bool transferSuccess, ) = _owner.call{
+                    value: escrowItem.amount
+                }("");
+                require(transferSuccess, "transfer failed");
+            } else {
+                IERC20(escrowItem.payToken).safeTransfer(
+                    _owner,
+                    escrowItem.amount
+                );
+            }
+            escrowItem.exists = false;
+        }
+        delete (escrow[_nftAddress][_tokenId][_owner]);
     }
 
     /// @notice Method for offering item
@@ -698,6 +752,10 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
      */
     function updateTokenRegistry(address _registry) external onlyOwner {
         tokenRegistry = _registry;
+    }
+
+    function updateNFTContract(address _nftContract) external onlyOwner {
+        nftContract = INFT(_nftContract);
     }
 
     /// Internal and Private

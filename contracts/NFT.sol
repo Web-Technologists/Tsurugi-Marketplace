@@ -19,11 +19,15 @@ contract NFT is ERC1155, Ownable, ReentrancyGuard, EIP712, AccessControl {
     using Strings for uint256;
     using ECDSA for bytes32;
 
-    uint platformFees = 500;
+    uint public platformFees = 500;
+    uint public auctionMarketPlaceIndex = 1000000000000000000;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     bool public paused = true;
+
+    address public marketPlace;
+    address public auction;
 
     mapping (address => bool) public acceptedTokens;
     mapping(uint256 => string) private _tokenURIs;
@@ -124,9 +128,15 @@ contract NFT is ERC1155, Ownable, ReentrancyGuard, EIP712, AccessControl {
         payable(msg.sender).transfer(balance);
     }
 
-    function airdrop(address _to, uint256 _tokenId, uint256 _quantity, string calldata _uri) external onlyOwner {
+    function airdrop(address _to, uint256 _tokenId, uint256 _quantity, string calldata _uri) external {
+        require(msg.sender == owner() || msg.sender == marketPlace || msg.sender == auction, "Only owner or marketPlace or auction can airdrop");
         _mint(_to, _tokenId, _quantity, "");
         _setTokenURI(_tokenId, _uri);
+    }
+
+    function updateAddresses(address _marketPlace, address _auction) external onlyOwner {
+        marketPlace = _marketPlace;
+        auction = _auction;
     }
 
     function _hash(NFTVoucher calldata voucher) internal view returns (bytes32) {
