@@ -65,6 +65,8 @@ describe("NFT", function () {
         `);
 
     await tokenRegistry.add(usdc.address);
+    await marketplace.updateNFTContract(nft1155.address)
+    await nft1155.updateAddresses(marketplace.address, constants.AddressZero);
 
     console.log(`
         The artist should mint nft`);
@@ -91,6 +93,14 @@ describe("NFT", function () {
         nft1155.address,
       BigNumber.from("1"),
       BigNumber.from("10"),
+      usdc.address,
+      utils.parseEther("20"),
+      BigNumber.from("1632304800"), // 2021-09-22 10:00:00 GMT
+    );
+
+    await marketplace.connect(artist).createNFTAndList(
+      BigNumber.from("10"),
+      "IPFS://DUMMY",
       usdc.address,
       utils.parseEther("20"),
       BigNumber.from("1632304800"), // 2021-09-22 10:00:00 GMT
@@ -142,8 +152,17 @@ describe("NFT", function () {
         artist.address
     );
 
+    await marketplace.connect(buyer).buyItemWithERC20(
+        // function overloading doesn't work
+        nft1155.address,
+        BigNumber.from("1000000000000000001"),
+        usdc.address,
+        artist.address
+    );
+
     await marketplace.payEscrow(nft.address, BigNumber.from("1"), artist.address);
     await marketplace.payEscrow(nft1155.address, BigNumber.from("1"), artist.address);
+    await marketplace.payEscrow(nft1155.address, BigNumber.from("1000000000000000001"), artist.address);
 
     console.log(`
         *Event ItemSold should be emitted with correct values: 
@@ -159,7 +178,7 @@ describe("NFT", function () {
     balance = await usdc.balanceOf(buyer.address);
     console.log(`
         *The Token balance of buyer now should be 30 Tokens`);
-    expect(weiToEther(balance) * 1).to.be.equal(380);
+    expect(weiToEther(balance) * 1).to.be.equal(180);
 
     const nftOwner = await nft.ownerOf(1);
     console.log(`
@@ -169,12 +188,12 @@ describe("NFT", function () {
     balance = await usdc.balanceOf(artist.address);
     console.log(`
         *The Token balance of the artist should be 19 Tokens`);
-    expect(weiToEther(balance) * 1).to.be.equal(209);
+    expect(weiToEther(balance) * 1).to.be.equal(399);
 
     balance = await usdc.balanceOf(platformFeeRecipient.address);
     console.log(`
         *The Token balance of the recipient should be 1 Token`);
-    expect(weiToEther(balance) * 1).to.be.equal(11);
+    expect(weiToEther(balance) * 1).to.be.equal(21);
 
     listing = await marketplace.listings(
       nft.address,
@@ -198,6 +217,9 @@ describe("NFT", function () {
         A buyer then buys that NFT with eth
         `);
     await tokenRegistry.add(usdc.address);
+    await marketplace.updateNFTContract(nft1155.address)
+    await nft1155.updateAddresses(marketplace.address, constants.AddressZero);
+
     console.log(`
         The artist should mint nft`);
     await nft.mint(artist.address, 1)
@@ -223,6 +245,14 @@ describe("NFT", function () {
         nft1155.address,
       BigNumber.from("1"),
       BigNumber.from("10"),
+      constants.AddressZero,
+      utils.parseEther("20"),
+      BigNumber.from("1632304800"), // 2021-09-22 10:00:00 GMT
+    );
+
+    await marketplace.connect(artist).createNFTAndList(
+      BigNumber.from("10"),
+      "IPFS://DUMMY",
       constants.AddressZero,
       utils.parseEther("20"),
       BigNumber.from("1632304800"), // 2021-09-22 10:00:00 GMT
@@ -274,8 +304,16 @@ describe("NFT", function () {
         { value: utils.parseEther("200") }
     );
 
+    await marketplace.connect(buyer).buyItem(
+        nft1155.address,
+        BigNumber.from("1000000000000000001"),
+        artist.address,
+        { value: utils.parseEther("200") }
+    );
+
     await marketplace.payEscrow(nft.address, BigNumber.from("1"), artist.address);
     await marketplace.payEscrow(nft1155.address, BigNumber.from("1"), artist.address);
+    await marketplace.payEscrow(nft1155.address, BigNumber.from("1000000000000000001"), artist.address);
 
     console.log(`
         *Event ItemSold should be emitted with correct values: 
@@ -302,7 +340,7 @@ describe("NFT", function () {
     but should be less than 221 ETH as the gas shouldn't cost more than 1 ETH`);
     expect(
       weiToEther(balance1) * 1 - weiToEther(balance4) * 1
-    ).to.be.equal(220);
+    ).to.be.equal(420);
     // expect(
     //   weiToEther(balance1) * 1 - weiToEther(balance4) * 1
     // ).to.be.lessThan(221);
@@ -316,7 +354,7 @@ describe("NFT", function () {
     *The difference of the artist's ETH balance should be 19 ETH`);
     expect(
       (weiToEther(balance5) * 1 - weiToEther(balance2) * 1).toFixed(5) * 1
-    ).to.be.equal(208);
+    ).to.be.equal(398);
 
     balance6 = await web3.eth.getBalance(platformFeeRecipient.address);
     console.log(`
@@ -326,7 +364,7 @@ describe("NFT", function () {
     console.log(`
     *The difference of the platform fee recipient's ETH balance should be 1 ETH`);
     expect(weiToEther(balance6) * 1 - weiToEther(balance3) * 1).to.be.equal(
-      12
+      20
     );
 
 
