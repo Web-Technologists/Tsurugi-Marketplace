@@ -645,9 +645,11 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
         }
         offer.payToken.safeTransferFrom(
             _creator,
-            _msgSender(),
+            address(this),
             price.sub(feeAmount)
         );
+
+        escrow[_nftAddress][_tokenId][_msgSender()].push(Escrow(_creator, address(offer.payToken), price.sub(feeAmount), true));
 
         // Transfer NFT to buyer
         if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {

@@ -106,6 +106,14 @@ describe("NFT", function () {
       BigNumber.from("1632304800"), // 2021-09-22 10:00:00 GMT
     );
 
+    await marketplace.connect(artist).createNFTAndList(
+      BigNumber.from("11"),
+      "IPFS://DUMMY",
+      usdc.address,
+      utils.parseEther("20"),
+      BigNumber.from("1632304800"), // 2021-09-22 10:00:00 GMT
+    );
+
     let listing = await marketplace.listings(
       nft.address,
       BigNumber.from("1"),

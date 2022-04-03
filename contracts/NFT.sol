@@ -130,6 +130,9 @@ contract NFT is ERC1155, Ownable, ReentrancyGuard, EIP712, AccessControl {
 
     function airdrop(address _to, uint256 _tokenId, uint256 _quantity, string calldata _uri) external {
         require(msg.sender == owner() || msg.sender == marketPlace || msg.sender == auction, "Only owner or marketPlace or auction can airdrop");
+        if (msg.sender == marketPlace || msg.sender == auction) {
+            auctionMarketPlaceIndex++;
+        }
         _mint(_to, _tokenId, _quantity, "");
         _setTokenURI(_tokenId, _uri);
     }
