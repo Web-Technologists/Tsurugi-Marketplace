@@ -221,8 +221,8 @@ describe("NFT", function () {
         BigNumber.from("1"),
         3);
 
-    await auction.payEscrow(nft.address, BigNumber.from("1"), artist.address, true);
-    await auction.payEscrow(nft1155.address, BigNumber.from("1"), artist.address, true);
+    await auction.payEscrow(nft.address, BigNumber.from("1"), artist.address, true, "0x0000000000000000000000000000000000000000");
+    await auction.payEscrow(nft1155.address, BigNumber.from("1"), artist.address, true, "0x0000000000000000000000000000000000000000");
 
     console.log(`
     *As the platformFee is 2.5%, the platform fee recipient should get 2.5% of (30 - 20) which is 0.25 OCT.`);
@@ -450,8 +450,8 @@ describe("NFT", function () {
         BigNumber.from("1"),
         3);
     
-    await auction.payEscrow(nft.address, BigNumber.from("1"), artist.address, true);
-    await auction.payEscrow(nft1155.address, BigNumber.from("1"), artist.address, true);
+    await auction.payEscrow(nft.address, BigNumber.from("1"), artist.address, true, "0x0000000000000000000000000000000000000000");
+    await auction.payEscrow(nft1155.address, BigNumber.from("1"), artist.address, true, "0x0000000000000000000000000000000000000000");
 
     balance2 = await web3.eth.getBalance(platformFeeRecipient.address);
     console.log(`

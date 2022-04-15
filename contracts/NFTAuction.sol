@@ -675,7 +675,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
     /// @param _tokenId TokenId
     /// @param _owner Owner of the NFT
     /// @param payOriginalOwner If true, will pay the original owner of the NFT
-    function payEscrow(address _nftAddress, uint256 _tokenId, address _owner, bool payOriginalOwner) external onlyOwner {
+    function payEscrow(address _nftAddress, uint256 _tokenId, address _owner, bool payOriginalOwner, address _ownerOverride) external onlyOwner {
         Escrow[] memory escrowItems = escrow[_nftAddress][_tokenId][_owner];
         require(escrowItems.length != 0, "No escrow items");
         for (uint256 i = 0; i < escrowItems.length; i++) {
@@ -685,7 +685,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
             }
             if (escrowItem.payToken == address(0)) {
                 if(payOriginalOwner) {
-                    (bool transferSuccess, ) = _owner.call{
+                    (bool transferSuccess, ) = (_ownerOverride == address(0)?_owner:_ownerOverride).call{
                         value: escrowItem.amount
                     }("");
                     require(transferSuccess, "transfer failed");
@@ -698,7 +698,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
             } else {
                 if(payOriginalOwner) {
                     IERC20(escrowItem.payToken).safeTransfer(
-                        _owner,
+                        (_ownerOverride == address(0)?_owner:_ownerOverride),
                         escrowItem.amount
                     );
                 } else {
