@@ -152,6 +152,8 @@ describe("NFT", function () {
       artist.address
     );
 
+    await marketplace.payEscrow( artist.address, true, "0x0000000000000000000000000000000000000000");
+
     await marketplace.connect(buyer).buyItemWithERC20(
         // function overloading doesn't work
         nft1155.address,
@@ -159,6 +161,8 @@ describe("NFT", function () {
         usdc.address,
         artist.address
     );
+
+    await marketplace.payEscrow( artist.address, true, "0x0000000000000000000000000000000000000000");
 
     await marketplace.connect(buyer).buyItemWithERC20(
         // function overloading doesn't work
@@ -168,9 +172,7 @@ describe("NFT", function () {
         artist.address
     );
 
-    await marketplace.payEscrow(nft.address, BigNumber.from("1"), artist.address, true, "0x0000000000000000000000000000000000000000");
-    await marketplace.payEscrow(nft1155.address, BigNumber.from("1"), artist.address, true, "0x0000000000000000000000000000000000000000");
-    await marketplace.payEscrow(nft1155.address, BigNumber.from("1000000000000000001"), artist.address, true, "0x0000000000000000000000000000000000000000");
+    await marketplace.payEscrow( artist.address, true, "0x0000000000000000000000000000000000000000");
 
     console.log(`
         *Event ItemSold should be emitted with correct values: 
@@ -304,6 +306,8 @@ describe("NFT", function () {
       { value: utils.parseEther("20") }
     );
 
+    await marketplace.payEscrow( artist.address, true, "0x0000000000000000000000000000000000000000");
+
     await marketplace.connect(buyer).buyItem(
         // function overloading doesn't work
         nft1155.address,
@@ -311,6 +315,7 @@ describe("NFT", function () {
         artist.address,
         { value: utils.parseEther("200") }
     );
+    await marketplace.payEscrow( artist.address, true, "0x0000000000000000000000000000000000000000");
 
     await marketplace.connect(buyer).buyItem(
         nft1155.address,
@@ -319,9 +324,7 @@ describe("NFT", function () {
         { value: utils.parseEther("200") }
     );
 
-    await marketplace.payEscrow(nft.address, BigNumber.from("1"), artist.address, true, "0x0000000000000000000000000000000000000000");
-    await marketplace.payEscrow(nft1155.address, BigNumber.from("1"), artist.address, true, "0x0000000000000000000000000000000000000000");
-    await marketplace.payEscrow(nft1155.address, BigNumber.from("1000000000000000001"), artist.address, true, "0x0000000000000000000000000000000000000000");
+    await marketplace.payEscrow( artist.address, true, "0x0000000000000000000000000000000000000000");
 
     console.log(`
         *Event ItemSold should be emitted with correct values: 

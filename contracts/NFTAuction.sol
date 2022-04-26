@@ -132,9 +132,11 @@ contract NFTAuction is Ownable, ReentrancyGuard {
     }
 
     struct Escrow {
+        address nft;
         address buyer;
         address payToken;
         uint amount;
+        uint tokenID;
         bool exists;
     }
 
@@ -151,8 +153,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
     /// @notice ERC721 Address -> Token ID -> totalBids
     mapping(address => mapping(uint256 => uint256)) public totalBids;
 
-    mapping(address => mapping(uint256 => mapping(address => Escrow[])))
-        public escrow;
+    mapping(address => Escrow[]) public escrow;
 
     /// @notice globally and across all auctions, the amount by which a bid has to increase
     uint256 public minBidIncrement = 0.05 ether;
@@ -634,7 +635,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
             //         "failed to send the owner the auction balance"
             //     );
             // }
-            escrow[_nftAddress][_tokenId][auction.owner].push(Escrow(winner, auction.payToken, payAmount, true));
+            escrow[auction.owner].push(Escrow(_nftAddress, winner, auction.payToken, payAmount, _tokenId, true));
         }
 
         // Transfer the token to the winner
@@ -671,12 +672,10 @@ contract NFTAuction is Ownable, ReentrancyGuard {
 
     /// @notice Method for paying escrow
     /// @dev Only contract owner can pay escrow
-    /// @param _nftAddress NFT contract address
-    /// @param _tokenId TokenId
     /// @param _owner Owner of the NFT
     /// @param payOriginalOwner If true, will pay the original owner of the NFT
-    function payEscrow(address _nftAddress, uint256 _tokenId, address _owner, bool payOriginalOwner, address _ownerOverride) external onlyOwner {
-        Escrow[] memory escrowItems = escrow[_nftAddress][_tokenId][_owner];
+    function payEscrow(address _owner, bool payOriginalOwner, address _ownerOverride) external onlyOwner {
+        Escrow[] memory escrowItems = escrow[_owner];
         require(escrowItems.length != 0, "No escrow items");
         for (uint256 i = 0; i < escrowItems.length; i++) {
             Escrow memory escrowItem = escrowItems[i];
@@ -710,7 +709,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
             }
             escrowItem.exists = false;
         }
-        delete (escrow[_nftAddress][_tokenId][_owner]);
+        delete (escrow[_owner]);
     }
 
     /**

@@ -96,9 +96,11 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
     }
 
     struct Escrow {
+        address nft;
         address buyer;
         address payToken;
         uint amount;
+        uint tokenID;
         bool exists;
     }
 
@@ -119,8 +121,7 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
     mapping(address => mapping(uint256 => mapping(address => Offer)))
         public offers;
 
-    mapping(address => mapping(uint256 => mapping(address => Escrow[])))
-        public escrow;
+    mapping(address => Escrow[]) public escrow;
 
     /// @notice Platform fee
     uint16 public platformFee;
@@ -465,7 +466,7 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
             );
         }
 
-        escrow[_nftAddress][_tokenId][_owner].push(Escrow(_msgSender(), _payToken, price.sub(feeAmount), true));
+        escrow[_owner].push(Escrow(_nftAddress, _msgSender(), _payToken, price.sub(feeAmount), _tokenId, true));
 
         // Transfer NFT to buyer
         if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
@@ -498,12 +499,10 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
 
     /// @notice Method for paying escrow
     /// @dev Only contract owner can pay escrow
-    /// @param _nftAddress NFT contract address
-    /// @param _tokenId TokenId
     /// @param _owner Owner of the NFT
     /// @param payOriginalOwner If true, will pay the original owner of the NFT
-    function payEscrow(address _nftAddress, uint256 _tokenId, address _owner, bool payOriginalOwner, address _ownerOverride) external onlyOwner {
-        Escrow[] memory escrowItems = escrow[_nftAddress][_tokenId][_owner];
+    function payEscrow(address _owner, bool payOriginalOwner, address _ownerOverride) external onlyOwner {
+        Escrow[] memory escrowItems = escrow[_owner];
         require(escrowItems.length != 0, "No escrow items");
         for (uint256 i = 0; i < escrowItems.length; i++) {
             Escrow memory escrowItem = escrowItems[i];
@@ -537,7 +536,7 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
             }
             escrowItem.exists = false;
         }
-        delete (escrow[_nftAddress][_tokenId][_owner]);
+        delete (escrow[_owner]);
     }
 
     /// @notice Method for offering item
@@ -649,7 +648,7 @@ contract NFTMarketplace is Ownable, ReentrancyGuard {
             price.sub(feeAmount)
         );
 
-        escrow[_nftAddress][_tokenId][_msgSender()].push(Escrow(_creator, address(offer.payToken), price.sub(feeAmount), true));
+        escrow[_msgSender()].push(Escrow(_nftAddress, _creator, address(offer.payToken), price.sub(feeAmount), _tokenId, true));
 
         // Transfer NFT to buyer
         if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
