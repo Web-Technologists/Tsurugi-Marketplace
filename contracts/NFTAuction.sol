@@ -483,16 +483,15 @@ contract NFTAuction is Ownable, ReentrancyGuard {
     function _resultAuction(address _nftAddress, uint256 _tokenId, address winner, uint256 winningBid) internal {
         // Check the auction to see if it can be resulted
         Auction storage auction = auctions[_nftAddress][_tokenId];
-
         if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
             IERC721 nft = IERC721(_nftAddress);
-            require(nft.ownerOf(_tokenId) == _msgSender(), "not owning item");
+            require((auction.owner == _msgSender() && nft.ownerOf(_tokenId) == _msgSender()) || owner() == _msgSender(), "not owning item");
         } else if (
             IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC1155)
         ) {
             IERC1155 nft = IERC1155(_nftAddress);
             require(
-                nft.balanceOf(_msgSender(), _tokenId) >= auction.quantity,
+                (auction.owner == _msgSender() && nft.balanceOf(_msgSender(), _tokenId) >= auction.quantity) || owner() == _msgSender(),
                 "not owning item"
             );
         } else {
@@ -518,7 +517,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
         if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
             IERC721 nft = IERC721(_nftAddress);
             require(
-                nft.isApprovedForAll(_msgSender(), address(this)),
+                nft.isApprovedForAll(auction.owner, address(this)),
                 "item not approved"
             );
         } else if (
@@ -526,7 +525,7 @@ contract NFTAuction is Ownable, ReentrancyGuard {
         ) {
             IERC1155 nft = IERC1155(_nftAddress);
             require(
-                nft.isApprovedForAll(_msgSender(), address(this)),
+                nft.isApprovedForAll(auction.owner, address(this)),
                 "item not approved"
             );
         }
@@ -641,13 +640,13 @@ contract NFTAuction is Ownable, ReentrancyGuard {
         // Transfer the token to the winner
         if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
             IERC721(_nftAddress).safeTransferFrom(
-                _msgSender(),
+                auction.owner,
                 winner,
                 _tokenId
             );
         } else {
             IERC1155(_nftAddress).safeTransferFrom(
-                _msgSender(),
+                auction.owner,
                 winner,
                 _tokenId,
                 auction.quantity,

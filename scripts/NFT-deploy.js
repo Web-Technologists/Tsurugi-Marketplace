@@ -33,7 +33,7 @@ describe("NFT", function () {
     console.log('\u0007');
     console.log('\u0007');
   })
-
+  
   it("Should check for contract's ownership!", async function () {
     expect(await nft.owner()).to.equal(accounts[0].address);
   });
